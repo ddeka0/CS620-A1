@@ -16,6 +16,7 @@ Requirements :
         - python3-venv (used for isolation)
         
 Steps to setup the project environment:
+       
        - 1. mkdir environments
        - 2. cd environments
        - 3. python3 -m venv project_env
