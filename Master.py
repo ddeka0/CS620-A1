@@ -1,33 +1,45 @@
 import socket
+import threading
 
-s = socket.socket()
-print("Socket successfully created")
+listIP = []
+listPORT = []
+listFD = []
 
-# reserve a port on your computer in our
-# case it is 12345 but it can be anything
-port = 12345
-
-# Next bind to the port
-# we have not typed any ip in the ip field
-# instead we have inputted an empty string
-# this makes the server listen to requests
-# coming from other computers on the network
-s.bind(('127.0.0.1', port))
-print("socket binded to %s" % (port))
-
-# put the socket into listening mode
-s.listen(5)
-print ("socket is listening")
-
-# a forever loop until we interrupt it or
-# an error occurs
-while True:
-    # Establish connection with client.
+def server():
+    s = socket.socket()
+    print("Socket successfully created")
+    port = 8080
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('127.0.0.1', port))
+    print("socket binded to %s" % (port))
+    s.listen(5)
+    print ("socket is listening")
     c, addr = s.accept()
     print('Got connection from', addr)
-
-    # send a thank you message to the client.
-    c.send(b'Thank you for connecting')
-
-    # Close the connection with the client
+    listIP.append(addr[0])
+    listFD.append(c)
+    c.send(b'PORT NO')
+    reply = c.recvfrom(1024)
+    reply = reply[0].decode('utf-8').split()
+    listPORT.append(int(reply[2]))
+    print(listIP)
+    print(listPORT)
     c.close()
+
+flag=True
+while(flag):
+    print("::::::::::::::::::::::::MASTER::::::::::::::::::::::::::")
+    print("Choose the following")
+    print("1:Get a Node")
+    print("2:Make a Ring")
+    print("3:Run Algorithm")
+    print("10: Exit")
+    choice = input()
+    if choice=='1':
+        server()
+    if choice=='2':
+        pass
+    if choice=='3':
+        pass
+    if choice=='10':
+        flag=False
