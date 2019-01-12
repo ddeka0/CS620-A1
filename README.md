@@ -7,7 +7,7 @@ Requirements :
         - Linux Kernel 2.6 or higher
         - python3
     
-    Dependency Package:
+    Dependency Package: (use sudo apt-get to install the dependencies)
         - python3-pip
         - build-essential 
         - libssl-dev 
