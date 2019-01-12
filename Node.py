@@ -3,7 +3,8 @@ import threading
 import random
 
 PORT = 1205
-
+CWFD = ' '    #clockWise FD
+ACWFD = ' '   #Anti clockwise FD
 def server():
     s = socket.socket()
     print("Socket successfully created")
@@ -38,13 +39,37 @@ def client():
     port = 8080
     s.connect(('127.0.0.1', port))
     while(Flag):
-        fromMaster = (s.recv(1024)).decode('utf-8')
-        if fromMaster == 'PORT NO':
-            reply = 'PORT NO: ' + str(PORT)
-            reply = reply.encode('utf-8')
-            s.send(reply)
-        if fromMaster == 'EXIT':
-            s.close()
+        fromMaster = ((s.recv(1024)).decode('utf-8')).split()
+        try:
+            if fromMaster[0] == 'PORTNO':
+                reply = 'PORT NO: ' + str(PORT)
+                reply = reply.encode('utf-8')
+                s.send(reply)
+            if fromMaster[0] == 'CONNECTCWTO':
+                clientCW(fromMaster)
+            if fromMaster[0] == 'CONNECTACWTO':
+                clientACW(fromMaster)
+            if fromMaster[0] == 'EXIT':
+                s.close()
+        except IndexError:
+            print("Master Died: TRY AGAIN")
+            break
+
+def clientCW(fromMaster):
+    CWFD = socket.socket()
+    IP = fromMaster[1]
+    PORT = int(fromMaster[2])
+    CWFD.connect((IP,PORT))
+    print("connected to ",IP , PORT)
+
+
+def clientACW(fromMaster):
+    ACWFD = socket.socket()
+    IP = fromMaster[1]
+    PORT = int(fromMaster[2])
+    ACWFD.connect((IP,PORT))
+    print("connected to ",IP , PORT)
+
 
 PORT = 1025
 t1 = threading.Thread(target=server)

@@ -1,6 +1,8 @@
 import socket
 import threading
 
+FLAGFORALGO=False
+
 listIP = []
 listPORT = []
 listFD = []
@@ -18,13 +20,12 @@ def server():
     print('Got connection from', addr)
     listIP.append(addr[0])
     listFD.append(c)
-    c.send(b'PORT NO')
+    c.send(b'PORTNO')
     reply = c.recvfrom(1024)
     reply = reply[0].decode('utf-8').split()
     listPORT.append(int(reply[2]))
     print(listIP)
     print(listPORT)
-    c.close()
 
 flag=True
 while(flag):
@@ -38,8 +39,30 @@ while(flag):
     if choice=='1':
         server()
     if choice=='2':
-        pass
+        if(len(listFD)>0):
+            for i in range(len(listFD)):
+                fd = listFD[i]
+                if(i==(len(listFD)-1)):
+                    msg = ('CONNECTCWTO 127.0.0.1 ' +str(listPORT[0])).encode('utf-8')
+                else:
+                    msg = ('CONNECTCWTO 127.0.0.1 '+str(listPORT[i+1])).encode('utf-8')
+                fd.send(msg)
+            for i in range(len(listFD)):
+                fd = listFD[i]
+                if(i==0):
+                    msg = ('CONNECTACWTO 127.0.0.1 ' +str(listPORT[len(listFD)-1])).encode('utf-8')
+                else:
+                    msg = ('CONNECTACWTO 127.0.0.1 '+str(listPORT[i-1])).encode('utf-8')
+                fd.send(msg)
+            print("RING FORMED")
+            FLAGFORALGO=True
+        else:
+            print("Cannot make ring without a node")
+
     if choice=='3':
-        pass
+        if FLAGFORALGO :
+            print("RUN ALGORITHM HERE") # send msg to run algorithm
+        else:
+            print("Cannot Run Alorithm")
     if choice=='10':
         flag=False
