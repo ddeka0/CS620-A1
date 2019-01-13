@@ -1,5 +1,6 @@
 import threading
 import os
+import time
 lock = threading.Condition()
 
 fd = 1
@@ -9,6 +10,7 @@ def task1():
     if fd ==1:
         lock.wait()
     lock.release()
+    time.sleep(2)
     print("Task 1 assigned to thread: {}".format(threading.current_thread().name))
     print("ID of process running task 1: {}".format(os.getpid()))
 
@@ -18,7 +20,7 @@ def task2():
     global fd
     print("Task 2 assigned to thread: {}".format(threading.current_thread().name))
     print("ID of process running task 2: {}".format(os.getpid()))
-    fd=2
+    fd=1
     lock.notify()
     lock.release()
 

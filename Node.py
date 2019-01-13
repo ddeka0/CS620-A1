@@ -2,8 +2,11 @@ import socket
 import threading
 import random
 import os
+import time
+
 
 id = os.getpid()
+print("NODE ID: ",id)
 
 PORT = 1205
 CWFD = ''
@@ -75,14 +78,68 @@ def transition():
     t3.start()
     t5.start()
     t6.start()
-    msgc = "clockwise " + str(id) + " 1"
-    msga = "anticlockwise " + str(id) + " 1"
-    sendClient(msga)
-    sendServer(msgc)
+
 
 def worker():
-    pass
+    global end
+    global id
+    global Cmsg
+    global Smsg
+    PhaseChange = 2
+    phase = 0
+    while(end):
+        if PhaseChange == 2:
+            print("PHASE ",phase)
+            msgc = "clockwise " + str(id) + " "+str(2**phase)
+            msga = "anticlockwise " + str(id) +" "+ str(2**phase)
+            sendClient(msga)
+            sendServer(msgc)
+            phase = phase+1
+            PhaseChange = 0
+        time.sleep(2)
+        lock.acquire()
+        if Cmsg != 'NULL' and Smsg != 'NULL':
+            Cmsg = Cmsg.split()
+            Smsg = Smsg.split()
+            if len(Cmsg)>1 and len(Smsg)>1:
+                if Cmsg[2]=='1' and Smsg[2]=='1':
+                    maxVal =max(id,int(Cmsg[1]),int(Smsg[1]))
+                    if(maxVal==int(Cmsg[1])):
+                        sendClient(str(Cmsg[1]))
+                    if(maxVal==int(Smsg[1])):
+                        sendServer(str(Smsg[1]))
+                if Cmsg[2]=='1' and Smsg[2]!='1':
+                    pass
+                if Cmsg[2]!='1' and Smsg[2]=='1':
+                    pass
+                if Cmsg[2]!='1' and Smsg[2]!='1':
+                    if Cmsg[1] ==str(id) and Smsg[1]==str(id):
+                        print("I am Leader")
+                        end = False
+                    else:
+                        Cmsg[2] = str(int(Cmsg[2])-1)
 
+            if Cmsg != 'NULL' and Smsg == 'NULL':
+                pass
+            if Cmsg == 'NULL' and Smsg != 'NULL':
+                pass
+            if Cmsg == 'NULL' and Smsg == 'NULL':
+                pass
+
+            if len(Cmsg)==1:
+                if int(Cmsg[0]) != id :
+                    sendServer(str(Cmsg))
+                else:
+                    PhaseChange = PhaseChange+1
+            if len(Smsg)==1:
+                if int(Smsg[0]) != id:
+                    sendClient(str(Cmsg))
+                else:
+                    PhaseChange = PhaseChange + 1
+
+            Cmsg='NULL'
+            Smsg='NULL'
+        lock.release()
 
 def sendClient(msg):
     global CWFD
