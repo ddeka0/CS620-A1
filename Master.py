@@ -39,7 +39,7 @@ while(flag):
     if choice=='1':
         server()
     if choice=='2':
-        if(len(listFD)>0):
+        if(len(listFD)>0 and (not FLAGFORALGO)):
             for i in range(len(listFD)):
                 fd = listFD[i]
                 if(i==(len(listFD)-1)):
@@ -47,21 +47,17 @@ while(flag):
                 else:
                     msg = ('CONNECTCWTO 127.0.0.1 '+str(listPORT[i+1])).encode('utf-8')
                 fd.send(msg)
-            for i in range(len(listFD)):
-                fd = listFD[i]
-                if(i==0):
-                    msg = ('CONNECTACWTO 127.0.0.1 ' +str(listPORT[len(listFD)-1])).encode('utf-8')
-                else:
-                    msg = ('CONNECTACWTO 127.0.0.1 '+str(listPORT[i-1])).encode('utf-8')
-                fd.send(msg)
             print("RING FORMED")
             FLAGFORALGO=True
         else:
-            print("Cannot make ring without a node")
+            print("Cannot make ring not enough node or ring already formed")
 
     if choice=='3':
         if FLAGFORALGO :
-            print("RUN ALGORITHM HERE") # send msg to run algorithm
+            msg = ('START').encode('utf-8')
+            for i in range(len(listFD)):
+                fd = listFD[i]
+                fd.send(msg)
         else:
             print("Cannot Run Alorithm")
     if choice=='10':
