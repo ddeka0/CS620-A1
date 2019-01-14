@@ -14,11 +14,12 @@ s=0
 PORT = 1205
 CWFD = ''
 SFD = ''
+flag = 0
+phase = 1
 Cmsg = 'NULL'
 Smsg = 'NULL'
 end = True
-lockc = threading.Condition()
-locks = threading.Condition()
+lock = threading.Condition()
 def server():
     global SFD
     s = socket.socket()
@@ -59,7 +60,8 @@ def client():
             if fromMaster[0] == 'CONNECTCWTO':
                 clientCW(fromMaster)
             if fromMaster[0] == 'START':
-                transition()
+                t3 = threading.Thread(target=transition)
+                t3.start()
             if fromMaster[0] == 'EXIT':
                 s.close()
         except IndexError:
@@ -76,109 +78,102 @@ def clientCW(fromMaster):
     print("connected to ",IP , PORT)
 
 def transition():
-    t5 = threading.Thread(target=receiveServer)
-    t6 = threading.Thread(target=receiveClient)
-    t3 = threading.Thread(target=worker)
-    t3.start()
-    t5.start()
-    t6.start()
+    global end
+    global flag
+    msgc = "clockwise " + str(id) + " 1 "
+    msga = "anticlockwise " + str(id) + " 1 "
+    sendClient(msga)
+    sendServer(msgc)
+    while(end):
+        time.sleep(1)
+        receiveClient()
+        time.sleep(1)
+        receiveServer()
+        time.sleep(1)
+        worker()
+        time.sleep(5)
+
+
+
 
 
 def worker():
-    global end
-    global id
-    global Cmsg
+    print("in worker")
     global Smsg
-    PhaseChange = 2
-    phase = 0
-    global s
-    global c
-    while(end):
-        if PhaseChange == 2:
-            print("PHASE ",phase)
-            msgc = "clockwise " + str(id) + " "+str(2**phase)
-            msga = "anticlockwise " + str(id) +" "+ str(2**phase)
-            sendClient(msga)
-            sendServer(msgc)
-            phase = phase+1
-            PhaseChange = 0
-        #time.sleep(2)
-        if s ==0 or c ==0:
-            continue
-        print("worker ")
-        print("C M",Cmsg)
-        print("S M",Smsg)
-        if Cmsg != 'NULL' and Smsg != 'NULL':
-            Cmsg = Cmsg.split()
-            Smsg = Smsg.split()
-            if len(Cmsg)>1 and len(Smsg)>1:
-                if Cmsg[2]=='1' and Smsg[2]=='1':
-                    maxVal =max(id,int(Cmsg[1]),int(Smsg[1]))
-                    if(maxVal==int(Cmsg[1])):
-                        sendClient(str(Cmsg[1]))
-                    if(maxVal==int(Smsg[1])):
-                        sendServer(str(Smsg[1]))
-                if Cmsg[2]=='1' and Smsg[2]!='1':
-                    pass
-                if Cmsg[2]!='1' and Smsg[2]=='1':
-                    pass
-                if Cmsg[2]!='1' and Smsg[2]!='1':
-                    if Cmsg[1] ==str(id) and Smsg[1]==str(id):
-                        print("I am Leader")
-                        end = False
-                    else:
-                        Cmsg[2] = str(int(Cmsg[2])-1)
-
-        if Cmsg != 'NULL' and Smsg == 'NULL':
-            print("C NN S N")
-            Cmsg = Cmsg.split()
-            if len(Cmsg)>1:
-                if Cmsg[2]=='1':
-                    if int(Cmsg[1])>id:
-                        sendClient(str(Cmsg[1]))
-                    if Cmsg[2]!='1':
-                        Cmsg[2] = str(int(Cmsg[2])-1)
-                        print("sent")
-                        sendServer(' '.join(Cmsg))
-
-            else:
-                if Cmsg[0]!=str(id):
-                    sendServer(Cmsg)
-
-        if Cmsg == 'NULL' and Smsg != 'NULL':
-            print("C N S NN")
-            Smsg = Smsg.split()
-            if len(Smsg)>1:
-                if Smsg[2]=='1':
-                    if int(Smsg[1])>id:
-                        sendServer(str(Smsg[1]))
-                    if Smsg[2]!='1':
-                        Smsg[2] = str(int(Smsg[2])-1)
-                        print("sent")
-                        sendClient(' '.join(Smsg))
-            else:
-                if Smsg[0]!=str(id):
-                    sendClient(Smsg)
-
-        if Cmsg == 'NULL' and Smsg == 'NULL':
-            pass
-
-        if len(Cmsg)==1:
-            if int(Cmsg[0]) != id :
-                sendServer(str(Cmsg))
-            else:
-                PhaseChange = PhaseChange+1
-        if len(Smsg)==1:
-            if int(Smsg[0]) != id:
-                sendClient(str(Cmsg))
-            else:
-                PhaseChange = PhaseChange + 1
-
-        Cmsg='NULL'
+    global Cmsg
+    global id
+    global phase
+    Smsg = Smsg.split()
+    Cmsg = Cmsg.split()
+    if Smsg[0]=='NULL' and Cmsg[0]=='NULL':
         Smsg='NULL'
-        c=0
-        s=0
-        print("worker unlocked")
+        Cmsg='NULL'
+        return
+    else:
+        print(Cmsg)
+        print(Smsg)
+        if len(Smsg)==3 and len(Cmsg)==3:
+            if Smsg[2]=="1" and Cmsg[2]=='1':
+                if id != int(Smsg[1]) and id != int(Cmsg[1]):
+                    retval = max(id,int(Smsg[1]),int(Cmsg[1]))
+                    if retval == int(Smsg[1]):
+                        sendServer(Smsg[1])
+                    if retval == int(Cmsg[1]):
+                        sendClient((Cmsg[1]))
+                if int(Smsg[1])==id and int(Cmsg[1])==id:
+                        print("I am leader")
+                        end = False
+            if Smsg[2]=='1' and Cmsg[2]!='1':
+                pass
+            if Smsg[2] != '1' and Cmsg[2] == '1':
+                pass
+            if Smsg[2] != "1" and Cmsg[2] != '1':
+                if (id == int((Cmsg[1]))) and (id == int((Smsg[1]))):
+                    print("I am leader")
+                    end = False
+                if (id != int((Cmsg[1]))) and (id != int((Smsg[1]))):
+                    Cmsg[2] = str(int(Cmsg[2])-1)
+                    Smsg[2] = str(int(Smsg[2])-1)
+                    sendClient(' '.join(Smsg))
+                    sendServer(' '.join(Cmsg))
+
+        if len(Smsg)==1 and len(Cmsg)==1 and Smsg[0]!='NULL' and Cmsg[0]!='NULL':
+            if int(Smsg[0])==id and int(Smsg[0])==id:
+                msgc = "clockwise " + str(id) + " "+str(pow(2,phase))+' '
+                msga = "anticlockwise " + str(id) + " "+str(pow(2,phase))+' '
+                sendClient(msga)
+                sendServer(msgc)
+                phase = phase+1
+        if Smsg[0]=='NULL' and len(Cmsg)==3:
+            if Cmsg[2]=='1':
+                retval = max(id,int(Cmsg[1]))
+                if retval == int(Cmsg[1]):
+                    sendClient(Cmsg[1])
+            else:
+                Cmsg[2] = str(int(Cmsg[2])-1)
+                sendServer(' '.join(Cmsg))
+
+        if Cmsg[0] == 'NULL' and len(Smsg)==3:
+            if Smsg[2] == '1':
+                retval = max(id, int(Smsg[1]))
+                if retval == int(Smsg[1]):
+                    sendServer(Smsg[1])
+            else:
+                Smsg[2] = str(int(Smsg[2]) - 1)
+                sendClient(' '.join(Smsg))
+
+        if Smsg[0]=='NULL' and len(Cmsg)==1:
+            if int(Cmsg[0])!=id:
+                sendServer(Cmsg[0])
+
+        if Cmsg[0] == 'NULL' and len(Smsg)==1:
+            if int(Smsg[0])!=id:
+                sendClient(Smsg[0])
+
+    Smsg = 'NULL'
+    Cmsg = 'NULL'
+    print("end worker")
+
 
 def sendClient(msg):
     global CWFD
@@ -188,23 +183,12 @@ def sendClient(msg):
 def receiveClient():
     global CWFD
     global Cmsg
-    global s
-    global end
-    while (end):
-        ready = select.select([CWFD], [], [], 2)
-        if ready[0]:
-            msg = CWFD.recvfrom(1024)
-            lockc.acquire()
-            Cmsg = msg[0].decode('utf-8')
-            s = 1
-            lockc.release()
-            print("received msg: ", Cmsg)
-        else:
-            lockc.acquire()
-            Cmsg='NULL'
-            s =1
-            lockc.release()
-        time.sleep(2)
+    result = select.select([CWFD], [], [], 0)
+    if result[0]:
+        msg = CWFD.recv(1024)
+        msg = msg.decode('utf-8')
+        print("received msg:", msg)
+        Cmsg = msg
 
 def sendServer(msg):
     global SFD
@@ -213,23 +197,12 @@ def sendServer(msg):
 def receiveServer():
     global SFD
     global Smsg
-    global end
-    global c
-    while(end):
-        ready = select.select([SFD], [], [], 2)
-        if ready[0]:
-            msg = SFD.recvfrom(1024)
-            locks.acquire()
-            Smsg = msg[0].decode('utf-8')
-            c = 1
-            locks.release()
-            print("received msg: ",Smsg)
-        else:
-            locks.acquire()
-            Smsg='NULL'
-            c = 1
-            locks.release()
-        time.sleep(2)
+    result = select.select([SFD], [], [], 0)
+    if result[0]:
+        msg = SFD.recv(1024)
+        msg = msg.decode('utf-8')
+        print("received msg:", msg)
+        Smsg = msg
 
 PORT = 1025
 t1 = threading.Thread(target=server)
