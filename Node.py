@@ -65,7 +65,7 @@ def client():
             if fromMaster[0] == 'EXIT':
                 s.close()
         except IndexError:
-            print("Master Died: TRY AGAIN")
+            print("DONE: SUCCESS")
             end = False
             break
 
@@ -138,12 +138,15 @@ def worker():
                     sendServer(' '.join(Cmsg))
 
         if len(Smsg)==1 and len(Cmsg)==1 and Smsg[0]!='NULL' and Cmsg[0]!='NULL':
-            if int(Smsg[0])==id and int(Smsg[0])==id:
+            if int(Smsg[0])==id and int(Cmsg[0])==id:
                 msgc = "clockwise " + str(id) + " "+str(pow(2,phase))+' '
                 msga = "anticlockwise " + str(id) + " "+str(pow(2,phase))+' '
                 sendClient(msga)
                 sendServer(msgc)
                 phase = phase+1
+            if int(Cmsg[0]) != id and int(Smsg[0]) != id:
+                sendServer(Cmsg[0])
+                sendClient(Smsg[0])
         if Smsg[0]=='NULL' and len(Cmsg)==3:
             if Cmsg[2]=='1':
                 retval = max(id,int(Cmsg[1]))
