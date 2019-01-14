@@ -3,18 +3,22 @@ import threading
 import random
 import os
 import time
+import select
 
 
 id = os.getpid()
 print("NODE ID: ",id)
 
+c=0
+s=0
 PORT = 1205
 CWFD = ''
 SFD = ''
 Cmsg = 'NULL'
 Smsg = 'NULL'
 end = True
-lock = threading.Condition()
+lockc = threading.Condition()
+locks = threading.Condition()
 def server():
     global SFD
     s = socket.socket()
@@ -87,6 +91,8 @@ def worker():
     global Smsg
     PhaseChange = 2
     phase = 0
+    global s
+    global c
     while(end):
         if PhaseChange == 2:
             print("PHASE ",phase)
@@ -96,8 +102,12 @@ def worker():
             sendServer(msgc)
             phase = phase+1
             PhaseChange = 0
-        time.sleep(2)
-        lock.acquire()
+        #time.sleep(2)
+        if s ==0 or c ==0:
+            continue
+        print("worker ")
+        print("C M",Cmsg)
+        print("S M",Smsg)
         if Cmsg != 'NULL' and Smsg != 'NULL':
             Cmsg = Cmsg.split()
             Smsg = Smsg.split()
@@ -119,27 +129,56 @@ def worker():
                     else:
                         Cmsg[2] = str(int(Cmsg[2])-1)
 
-            if Cmsg != 'NULL' and Smsg == 'NULL':
-                pass
-            if Cmsg == 'NULL' and Smsg != 'NULL':
-                pass
-            if Cmsg == 'NULL' and Smsg == 'NULL':
-                pass
+        if Cmsg != 'NULL' and Smsg == 'NULL':
+            print("C NN S N")
+            Cmsg = Cmsg.split()
+            if len(Cmsg)>1:
+                if Cmsg[2]=='1':
+                    if int(Cmsg[1])>id:
+                        sendClient(str(Cmsg[1]))
+                    if Cmsg[2]!='1':
+                        Cmsg[2] = str(int(Cmsg[2])-1)
+                        print("sent")
+                        sendServer(' '.join(Cmsg))
 
-            if len(Cmsg)==1:
-                if int(Cmsg[0]) != id :
-                    sendServer(str(Cmsg))
-                else:
-                    PhaseChange = PhaseChange+1
-            if len(Smsg)==1:
-                if int(Smsg[0]) != id:
-                    sendClient(str(Cmsg))
-                else:
-                    PhaseChange = PhaseChange + 1
+            else:
+                if Cmsg[0]!=str(id):
+                    sendServer(Cmsg)
 
-            Cmsg='NULL'
-            Smsg='NULL'
-        lock.release()
+        if Cmsg == 'NULL' and Smsg != 'NULL':
+            print("C N S NN")
+            Smsg = Smsg.split()
+            if len(Smsg)>1:
+                if Smsg[2]=='1':
+                    if int(Smsg[1])>id:
+                        sendServer(str(Smsg[1]))
+                    if Smsg[2]!='1':
+                        Smsg[2] = str(int(Smsg[2])-1)
+                        print("sent")
+                        sendClient(' '.join(Smsg))
+            else:
+                if Smsg[0]!=str(id):
+                    sendClient(Smsg)
+
+        if Cmsg == 'NULL' and Smsg == 'NULL':
+            pass
+
+        if len(Cmsg)==1:
+            if int(Cmsg[0]) != id :
+                sendServer(str(Cmsg))
+            else:
+                PhaseChange = PhaseChange+1
+        if len(Smsg)==1:
+            if int(Smsg[0]) != id:
+                sendClient(str(Cmsg))
+            else:
+                PhaseChange = PhaseChange + 1
+
+        Cmsg='NULL'
+        Smsg='NULL'
+        c=0
+        s=0
+        print("worker unlocked")
 
 def sendClient(msg):
     global CWFD
@@ -149,13 +188,23 @@ def sendClient(msg):
 def receiveClient():
     global CWFD
     global Cmsg
+    global s
+    global end
     while (end):
-        msg = CWFD.recvfrom(1024)
-        lock.acquire()
-        Cmsg = msg[0].decode('utf-8')
-        lock.notify()
-        lock.release()
-        print("received msg: ", Cmsg)
+        ready = select.select([CWFD], [], [], 2)
+        if ready[0]:
+            msg = CWFD.recvfrom(1024)
+            lockc.acquire()
+            Cmsg = msg[0].decode('utf-8')
+            s = 1
+            lockc.release()
+            print("received msg: ", Cmsg)
+        else:
+            lockc.acquire()
+            Cmsg='NULL'
+            s =1
+            lockc.release()
+        time.sleep(2)
 
 def sendServer(msg):
     global SFD
@@ -165,14 +214,22 @@ def receiveServer():
     global SFD
     global Smsg
     global end
+    global c
     while(end):
-        msg = SFD.recvfrom(1024)
-        lock.acquire()
-        Smsg = msg[0].decode('utf-8')
-        lock.notify()
-        lock.release()
-        print("received msg: ",Smsg)
-
+        ready = select.select([SFD], [], [], 2)
+        if ready[0]:
+            msg = SFD.recvfrom(1024)
+            locks.acquire()
+            Smsg = msg[0].decode('utf-8')
+            c = 1
+            locks.release()
+            print("received msg: ",Smsg)
+        else:
+            locks.acquire()
+            Smsg='NULL'
+            c = 1
+            locks.release()
+        time.sleep(2)
 
 PORT = 1025
 t1 = threading.Thread(target=server)

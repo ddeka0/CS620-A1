@@ -1,5 +1,5 @@
 import socket
-
+import select
 # Create a socket object
 s = socket.socket()
 
@@ -10,6 +10,13 @@ port = 12345
 s.connect(('127.0.0.1', port))
 
 # receive data from the server
-print s.recv(1024)
+#s.settimeout(2)
+
+ready = select.select([s], [], [], 2)
+if ready[0]:
+    data = s.recv(4096)
+else:
+    data = "NOTHING"
+print(data)
 # close the connection
 s.close()
