@@ -103,6 +103,7 @@ def worker():
     global Cmsg
     global id
     global phase
+    global end
     Smsg = Smsg.split()
     Cmsg = Cmsg.split()
     if Smsg[0]=='NULL' and Cmsg[0]=='NULL':
