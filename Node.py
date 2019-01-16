@@ -85,13 +85,13 @@ def transition():
     sendClient(msga)
     sendServer(msgc)
     while(end):
-        time.sleep(1)
+        time.sleep(0.5)
         receiveClient()
-        time.sleep(1)
+        time.sleep(0.5)
         receiveServer()
-        time.sleep(1)
+        time.sleep(0.5)
         worker()
-        time.sleep(5)
+        time.sleep(1)
 
 
 
@@ -131,7 +131,6 @@ def worker():
             if Smsg[2] != "1" and Cmsg[2] != '1':
                 if (id == int((Cmsg[1]))) and (id == int((Smsg[1]))):
                     print("I am leader")
-                    end = False
                 if (id != int((Cmsg[1]))) and (id != int((Smsg[1]))):
                     Cmsg[2] = str(int(Cmsg[2])-1)
                     Smsg[2] = str(int(Smsg[2])-1)
