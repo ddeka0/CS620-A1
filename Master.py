@@ -1,7 +1,45 @@
 import socket
 import threading
+import random
+import os
+import time
+import select
 
-FLAGFORALGO=False
+import logging
+
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG)
+
+NO_COLOR = "\33[m"
+RED, GREEN, ORANGE, BLUE, PURPLE, LBLUE, GREY = \
+    map("\33[%dm".__mod__, range(31, 38))
+
+logging.basicConfig(format="%(message)s", level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# the decorator to apply on the logger methods info, warn, ...
+def add_color(logger_method, color):
+	def wrapper(message, *args, **kwargs):
+		return logger_method(
+		# the coloring is applied here.
+		color+message+NO_COLOR,
+		*args, **kwargs
+	)
+	return wrapper
+
+for level, color in zip((
+	"info", "warn", "error", "debug"), (
+	GREEN, ORANGE, RED, BLUE
+)):
+	setattr(logger, level, add_color(getattr(logger, level), color))
+
+id = os.getpid()
+logger = logging.getLogger(__name__)
+logger.info("Master Node")
+
+
+FLAGFORALGO = False
 
 listIP = []
 listPORT = []
@@ -62,3 +100,7 @@ while(flag):
             print("Cannot Run Alorithm")
     if choice=='10':
         flag=False
+
+
+if __name__ == "__main__": 
+    main()

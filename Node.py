@@ -5,56 +5,93 @@ import os
 import time
 import select
 
+import logging
+
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG)
+
+NO_COLOR = "\33[m"
+RED, GREEN, ORANGE, BLUE, PURPLE, LBLUE, GREY = \
+    map("\33[%dm".__mod__, range(31, 38))
+
+logging.basicConfig(format="%(message)s", level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# the decorator to apply on the logger methods info, warn, ...
+def add_color(logger_method, color):
+	def wrapper(message, *args, **kwargs):
+		return logger_method(
+		# the coloring is applied here.
+		color+message+NO_COLOR,
+		*args, **kwargs
+	)
+	return wrapper
+
+for level, color in zip((
+	"info", "warn", "error", "debug"), (
+	GREEN, ORANGE, RED, BLUE
+)):
+	setattr(logger, level, add_color(getattr(logger, level), color))
 
 id = os.getpid()
-print("NODE ID: ",id)
+logger = logging.getLogger(__name__)
+logger.info("NODE ID: %d",id)
+
+
 
 c=0
 s=0
-PORT = 1205
-CWFD = ''
-SFD = ''
+serverPort = 1025
+rightFd = ''
+leftFd = ''
 flag = 0
 phase = 1
-Cmsg = 'NULL'
-Smsg = 'NULL'
+msgFromRight = 'NULL'
+msgFromLeft = 'NULL'
 end = True
+backLogQ = 5
+bufferSize = 1024
 lock = threading.Condition()
+
+"""
+This thread is created for receiving connection request
+from Left
+"""
 def server():
-    global SFD
+    global leftFd
     s = socket.socket()
-    print("Socket successfully created")
-    global PORT
-
-    a = True
-
-    while(a):
+    logger.info("Socket successfully created for server")
+    global serverPort
+    portNotAlloacted = True
+    while(portNotAlloacted):
         try:
-            s.bind(('127.0.0.1', PORT))
-            a = False
+            s.bind(('127.0.0.1', serverPort))
+            portNotAlloacted = False
         except OSError:
-            PORT = random.randint(1026, 50000)
+            serverPort = random.randint(1026, 50000)
 
-    print("socket binded to %s" % (PORT))
+    logger.info("socket binded to %s" % (serverPort))
 
-    s.listen(5)
-    print ("socket is listening")
-    SFD, addr = s.accept()
-    print('Got connection from', addr)
+    s.listen(backLogQ)
+    print("server is listening on port number ",serverPort)
+    leftFd, addr = s.accept()
+    print("Got connection from ", addr)
 
 
 def client():
-    global PORT
-    Flag = True
+    global serverPort
     global end
     s = socket.socket()
     port = 8080
     s.connect(('127.0.0.1', port))
-    while(Flag):
+    
+    running = True
+    while(running):
         fromMaster = ((s.recv(1024)).decode('utf-8')).split()
         try:
             if fromMaster[0] == 'PORTNO':
-                reply = 'PORT NO: ' + str(PORT)
+                reply = 'PORT NO: ' + str(serverPort)
                 reply = reply.encode('utf-8')
                 s.send(reply)
             if fromMaster[0] == 'CONNECTCWTO':
@@ -64,156 +101,171 @@ def client():
                 t3.start()
             if fromMaster[0] == 'EXIT':
                 s.close()
+                running = False
         except IndexError:
-            print("DONE: SUCCESS")
+            logger.info("DONE: SUCCESS")
             end = False
             break
 
 def clientCW(fromMaster):
-    global CWFD
-    CWFD = socket.socket()
+    global rightFd
+    rightFd = socket.socket()
     IP = fromMaster[1]
     PORT = int(fromMaster[2])
-    CWFD.connect((IP,PORT))
+    rightFd.connect((IP,PORT))
     print("connected to ",IP , PORT)
 
+
+"""
+This thread sends and recieves messages from left and right
+nodes and processes these messages and sends/relays them to others
+"""
 def transition():
     global end
     global flag
     msgc = "clockwise " + str(id) + " 1 "
     msga = "anticlockwise " + str(id) + " 1 "
-    sendClient(msga)
-    sendServer(msgc)
+    sendRightNode(msga)
+    sendLeftNode(msgc)
     while(end):
         time.sleep(0.5)
-        receiveClient()
+        receiveFromRight()
         time.sleep(0.5)
-        receiveServer()
+        receiveFromLeft()
         time.sleep(0.5)
-        worker()
+        processAndSend()
         time.sleep(1)
 
 
-
-
-
-def worker():
-    print("in worker")
-    global Smsg
-    global Cmsg
+"""
+This function is used process the incoming messages
+and decide the action and send the message
+and relays the message when required
+"""
+def processAndSend():
+    logger.debug("ENTRY to processAndSend()")
+    global msgFromLeft
+    global msgFromRight
     global id
     global phase
     global end
-    Smsg = Smsg.split()
-    Cmsg = Cmsg.split()
-    if Smsg[0]=='NULL' and Cmsg[0]=='NULL':
-        Smsg='NULL'
-        Cmsg='NULL'
+    msgFromLeft = msgFromLeft.split()
+    msgFromRight = msgFromRight.split()
+    # nothing received on any side
+    if msgFromLeft[0] =='NULL' and msgFromRight[0] =='NULL':
+        msgFromLeft  = 'NULL'
+        msgFromRight ='NULL'
         return
     else:
-        print(Cmsg)
-        print(Smsg)
-        if len(Smsg)==3 and len(Cmsg)==3:
-            if Smsg[2]=="1" and Cmsg[2]=='1':
-                if id != int(Smsg[1]) and id != int(Cmsg[1]):
-                    retval = max(id,int(Smsg[1]),int(Cmsg[1]))
-                    if retval == int(Smsg[1]):
-                        sendServer(Smsg[1])
-                    if retval == int(Cmsg[1]):
-                        sendClient((Cmsg[1]))
-                if int(Smsg[1])==id and int(Cmsg[1])==id:
-                        print("I am leader")
+        print("Message received from LeftNode ",msgFromLeft);
+        print("Message received from RightNode ",msgFromRight);
+        # tuple received on each side
+        if len(msgFromLeft)==3 and len(msgFromRight)==3:
+            if msgFromLeft[2]=="1" and msgFromRight[2]=='1':
+                if id != int(msgFromLeft[1]) and id != int(msgFromRight[1]):
+                    retval = max(id,int(msgFromLeft[1]),int(msgFromRight[1]))
+                    if retval == int(msgFromLeft[1]):
+                        sendLeftNode(msgFromLeft[1])
+                    if retval == int(msgFromRight[1]):
+                        sendRightNode((msgFromRight[1]))
+                if int(msgFromLeft[1])==id and int(msgFromRight[1])==id:
+                        logger.info("<<<<<I-am-leader>>>>>")
                         end = False
-            if Smsg[2]=='1' and Cmsg[2]!='1':
+            if msgFromLeft[2]=='1' and msgFromRight[2]!='1':
                 pass
-            if Smsg[2] != '1' and Cmsg[2] == '1':
+            if msgFromLeft[2] != '1' and msgFromRight[2] == '1':
                 pass
-            if Smsg[2] != "1" and Cmsg[2] != '1':
-                if (id == int((Cmsg[1]))) and (id == int((Smsg[1]))):
-                    print("I am leader")
-                if (id != int((Cmsg[1]))) and (id != int((Smsg[1]))):
-                    Cmsg[2] = str(int(Cmsg[2])-1)
-                    Smsg[2] = str(int(Smsg[2])-1)
-                    sendClient(' '.join(Smsg))
-                    sendServer(' '.join(Cmsg))
-
-        if len(Smsg)==1 and len(Cmsg)==1 and Smsg[0]!='NULL' and Cmsg[0]!='NULL':
-            if int(Smsg[0])==id and int(Cmsg[0])==id:
+            if msgFromLeft[2] != "1" and msgFromRight[2] != '1':
+                if (id == int((msgFromRight[1]))) and (id == int((msgFromLeft[1]))):
+                    logger.info("<<<<<I-am-leader>>>>>")
+                    end = False
+                if (id != int((msgFromRight[1]))) and (id != int((msgFromLeft[1]))):
+                    msgFromRight[2] = str(int(msgFromRight[2])-1)
+                    msgFromLeft[2] = str(int(msgFromLeft[2])-1)
+                    sendRightNode(' '.join(msgFromLeft))
+                    sendLeftNode(' '.join(msgFromRight))
+        # advance to the next phase
+        if len(msgFromLeft)==1 and len(msgFromRight)==1 and msgFromLeft[0]!='NULL' and msgFromRight[0]!='NULL':
+            if int(msgFromLeft[0])==id and int(msgFromRight[0])==id:
                 msgc = "clockwise " + str(id) + " "+str(pow(2,phase))+' '
                 msga = "anticlockwise " + str(id) + " "+str(pow(2,phase))+' '
-                sendClient(msga)
-                sendServer(msgc)
+                sendRightNode(msga)
+                sendLeftNode(msgc)
                 phase = phase+1
-            if int(Cmsg[0]) != id and int(Smsg[0]) != id:
-                sendServer(Cmsg[0])
-                sendClient(Smsg[0])
-        if Smsg[0]=='NULL' and len(Cmsg)==3:
-            if Cmsg[2]=='1':
-                retval = max(id,int(Cmsg[1]))
-                if retval == int(Cmsg[1]):
-                    sendClient(Cmsg[1])
+            if int(msgFromRight[0]) != id and int(msgFromLeft[0]) != id:
+                sendLeftNode(msgFromRight[0])
+                sendRightNode(msgFromLeft[0])
+        if msgFromLeft[0]=='NULL' and len(msgFromRight)==3:
+            if msgFromRight[2]=='1':
+                retval = max(id,int(msgFromRight[1]))
+                if retval == int(msgFromRight[1]):
+                    sendRightNode(msgFromRight[1])
             else:
-                Cmsg[2] = str(int(Cmsg[2])-1)
-                sendServer(' '.join(Cmsg))
+                msgFromRight[2] = str(int(msgFromRight[2])-1)
+                sendLeftNode(' '.join(msgFromRight))
 
-        if Cmsg[0] == 'NULL' and len(Smsg)==3:
-            if Smsg[2] == '1':
-                retval = max(id, int(Smsg[1]))
-                if retval == int(Smsg[1]):
-                    sendServer(Smsg[1])
+        if msgFromRight[0] == 'NULL' and len(msgFromLeft)==3:
+            if msgFromLeft[2] == '1':
+                retval = max(id, int(msgFromLeft[1]))
+                if retval == int(msgFromLeft[1]):
+                    sendLeftNode(msgFromLeft[1])
             else:
-                Smsg[2] = str(int(Smsg[2]) - 1)
-                sendClient(' '.join(Smsg))
+                msgFromLeft[2] = str(int(msgFromLeft[2]) - 1)
+                sendRightNode(' '.join(msgFromLeft))
 
-        if Smsg[0]=='NULL' and len(Cmsg)==1:
-            if int(Cmsg[0])!=id:
-                sendServer(Cmsg[0])
+        if msgFromLeft[0]=='NULL' and len(msgFromRight)==1:
+            if int(msgFromRight[0])!=id:
+                sendLeftNode(msgFromRight[0])
 
-        if Cmsg[0] == 'NULL' and len(Smsg)==1:
-            if int(Smsg[0])!=id:
-                sendClient(Smsg[0])
+        if msgFromRight[0] == 'NULL' and len(msgFromLeft)==1:
+            if int(msgFromLeft[0])!=id:
+                sendRightNode(msgFromLeft[0])
 
-    Smsg = 'NULL'
-    Cmsg = 'NULL'
-    print("end worker")
-
-
-def sendClient(msg):
-    global CWFD
-    CWFD.send(msg.encode('utf-8'))
+    msgFromLeft = 'NULL'
+    msgFromRight = 'NULL'
+    logger.debug("EXIT from processAndSend()")
 
 
-def receiveClient():
-    global CWFD
-    global Cmsg
-    result = select.select([CWFD], [], [], 0)
+def sendRightNode(msg):
+    global rightFd
+    rightFd.send(msg.encode('utf-8'))
+
+
+def receiveFromRight():
+    global rightFd
+    global msgFromRight
+    result = select.select([rightFd], [], [], 0)
     if result[0]:
-        msg = CWFD.recv(1024)
+        msg = rightFd.recv(1024)
         msg = msg.decode('utf-8')
-        print("received msg:", msg)
-        Cmsg = msg
+        logger.info("Received msg: %s", msg)
+        msgFromRight = msg
 
-def sendServer(msg):
-    global SFD
-    SFD.send(msg.encode('utf-8'))
+def sendLeftNode(msg):
+    global leftFd
+    leftFd.send(msg.encode('utf-8'))
 
-def receiveServer():
-    global SFD
-    global Smsg
-    result = select.select([SFD], [], [], 0)
+def receiveFromLeft():
+    global leftFd
+    global msgFromLeft
+    result = select.select([leftFd], [], [], 0)
     if result[0]:
-        msg = SFD.recv(1024)
+        msg = leftFd.recv(1024)
         msg = msg.decode('utf-8')
-        print("received msg:", msg)
-        Smsg = msg
+        logger.info("Received msg: %s", msg)
+        msgFromLeft = msg
 
-PORT = 1025
-t1 = threading.Thread(target=server)
-t1.start()
+def main():
 
-t2 = threading.Thread(target=client)
-t2.start()
+    t1 = threading.Thread(target=server)
+    t1.start()
 
+    t2 = threading.Thread(target=client)
+    t2.start()
+
+
+if __name__ == "__main__": 
+    main()
 
 
 

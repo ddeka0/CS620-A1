@@ -1,0 +1,3 @@
+[TYPECHECK]
+ignored-classes=SQLObject,_socketobject
+
