@@ -34,7 +34,7 @@ for level, color in zip((
 )):
 	setattr(logger, level, add_color(getattr(logger, level), color))
 
-id = os.getpid()
+id = int(input("Enter PID: ")) #os.getpid()
 logger = logging.getLogger(__name__)
 logger.info("NODE ID: %d",id)
 
@@ -127,14 +127,14 @@ def transition():
     msga = "anticlockwise " + str(id) + " 1 "
     sendRightNode(msga)
     sendLeftNode(msgc)
-    while(end):
+    while(end): 
         time.sleep(0.5)
         receiveFromRight()
         time.sleep(0.5)
         receiveFromLeft()
         time.sleep(0.5)
         processAndSend()
-        time.sleep(1)
+        time.sleep(5)
 
 
 """
@@ -192,7 +192,7 @@ def processAndSend():
                 sendRightNode(msga)
                 sendLeftNode(msgc)
                 phase = phase+1
-            if int(msgFromRight[0]) != id and int(msgFromLeft[0]) != id:
+            if int(msgFromRight[0]) > id and int(msgFromLeft[0]) > id:
                 sendLeftNode(msgFromRight[0])
                 sendRightNode(msgFromLeft[0])
         if msgFromLeft[0]=='NULL' and len(msgFromRight)==3:
@@ -260,6 +260,8 @@ def main():
     t1 = threading.Thread(target=server)
     t1.start()
 
+    time.sleep(1)
+    
     t2 = threading.Thread(target=client)
     t2.start()
 
