@@ -1,5 +1,8 @@
 # CS620-A1
 Implementation of HS algorithm - bi-directional ring:leader selection algorithm
+Team members:
+	-Abhishek Singh 18305R010
+	-Debashish Deka 173050055
 
 Requirements : 
 
